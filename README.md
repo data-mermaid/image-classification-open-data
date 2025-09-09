@@ -45,7 +45,7 @@ df = pd.read_parquet(
 )
 ```
 
-In R, the [arrow] package can be used to read the parquet as follows:
+In R, the [arrow](https://arrow.apache.org/docs/r/) package can be used to read the parquet as follows:
 
 ```r
 library(arrow)
