@@ -122,7 +122,7 @@ TODO
 
 ## Tutorials
 
-TODO
+- [Tutorial for R users](https://data-mermaid.github.io/image-classification-open-data/image-classification-open-data-tutorial_R.html)
 
 ## License
 
