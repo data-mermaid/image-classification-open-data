@@ -45,7 +45,15 @@ df = pd.read_parquet(
 )
 ```
 
-TODO: R guidance
+In R, the [arrow] package can be used to read the parquet as follows:
+
+```r
+library(arrow)
+
+df_annotations <- arrow::read_parquet(
+  "https://coral-reef-training.s3.us-east-1.amazonaws.com/mermaid/mermaid_confirmed_annotations.parquet"
+)
+```
 
 ### MERMAID
 
