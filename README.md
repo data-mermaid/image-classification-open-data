@@ -122,7 +122,7 @@ Once per day `s3://coral-reef-training/mermaid/mermaid_confirmed_annotations.par
 
 ## Suggested attribution
 
-TODO
+MERMAID. Documentation and tutorials for community coral reef image classification training data bucket. https://github.com/data-mermaid/image-classification-open-data.
 
 ## Change log
 
