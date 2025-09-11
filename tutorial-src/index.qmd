@@ -1,0 +1,15 @@
+---
+title: "Welcome"
+format: 
+  html: #for website
+    embed-resources: true
+editor: visual
+---
+
+This site hosts the **MERMAID Image Classification Open Data Tutorial**.
+
+-   Go to the [Tutorial in R](image-classification-open-data-tutorial_R.html).
+
+-   Go to the [Tutorial in Python](image-classification-open-data-tutorial_Python.html).
+
+-   Repo: <https://github.com/data-mermaid/image-classification-open-data>

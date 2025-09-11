@@ -1,0 +1,207 @@
+---
+title: "MERMAID Image Classification Open Data Tutorial"
+subtitle: "Python version"
+author:
+    - name: Viktor Domazetoski
+    - name: Iain R. Caldwell
+date: 09/10/2025
+format:
+    html:
+        embed-resources: true
+toc: true
+title-block-banner: "#f0f3f5"
+title-block-banner-color: "black"
+include-after-body: "footer.html"
+jupyter: python3
+---
+
+The following is a short tutorial showing how MERMAID images and their associated annotations can be accessed from the S3 bucket using Python code, with a final step of visualizing them together.
+
+------------------------------------------------------------------------
+
+## Accessing MERMAID annotations
+
+To access and work with MERMAID open data (including images and annotations) you will need to open the `mermaid_confirmed_annotations.parquet` file with a library such as `duckdb`.
+
+```{python}
+import duckdb
+
+con = duckdb.connect()
+con.install_extension('httpfs')   # only needed once
+con.load_extension('httpfs')
+
+# Configure S3 (for public buckets you only need region)
+con.execute("SET s3_region='us-east-1'")
+con.execute("SET s3_access_key_id=''")
+con.execute("SET s3_secret_access_key=''")
+con.execute("SET s3_session_token=''")
+
+s3_url = "s3://coral-reef-training/mermaid/mermaid_confirmed_annotations.parquet"
+
+df_annotations = con.execute(f"SELECT * FROM read_parquet('{s3_url}')").df()
+
+df_images = df_annotations[["image_id","region_id","region_name"]].drop_duplicates("image_id")
+
+print(
+    f"Loaded {len(df_annotations):,} annotations across "
+    f"{len(df_images):,} images from "
+    f"{df_images['region_id'].nunique():,} unique geographic realms."
+)
+
+```
+
+------------------------------------------------------------------------
+
+## Getting an image
+
+Extracting an image from the DataFrame and its associated annotations can be done as such:
+
+```{python}
+import boto3
+from botocore.config import Config
+from botocore import UNSIGNED
+import io
+from PIL import Image
+
+# Anonymous S3 client (public bucket; no creds needed)
+s3 = boto3.client(
+    "s3",
+    region_name="us-east-1",
+    config=Config(signature_version=UNSIGNED)
+)
+
+def get_image_s3(image_id: str, bucket: str = "coral-reef-training", thumbnail: bool = False) -> Image.Image:
+    key = f"mermaid/{image_id}_thumbnail.png" if thumbnail else f"mermaid/{image_id}.png"
+    resp = s3.get_object(Bucket=bucket, Key=key)
+    return Image.open(io.BytesIO(resp["Body"].read()))
+
+# Example (uses df_images/df_annotations from your first chunk)
+idx = 0
+image_id = df_images.loc[idx, "image_id"]
+image = get_image_s3(image_id, thumbnail=False).convert("RGB")
+
+# Get the annotations for the associated image
+annotations = df_annotations.loc[df_annotations["image_id"] == image_id]
+
+# (Quarto) display inline
+from IPython.display import display
+display(image)
+```
+
+------------------------------------------------------------------------
+
+## Plot the image with annotations
+
+After getting an example image with its associated annotations (benthic attributes and growth forms) you can visualize them together as follows:
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+
+# --- Configure which columns mean what in your annotations table ---
+COL_X = "col"
+COL_Y = "row"
+COL_BENTHIC = "benthic_attribute_name"   
+COL_GROWTH  = "growth_form_name"         
+COL_COLOR   = "benthic_color"            # optional precomputed color column
+COL_MARKER  = "growth_form_marker"       # optional precomputed marker column
+
+# --- Normalize blanks in growth form ---
+annotations = annotations.copy()
+annotations[COL_GROWTH] = annotations[COL_GROWTH].fillna("None")
+annotations.loc[annotations[COL_GROWTH].eq(""), COL_GROWTH] = "None"
+
+# --- Make/choose colors for benthic attributes ---
+def make_color_lookup(df):
+    if COL_COLOR in df.columns and df[COL_COLOR].notna().any():
+        # Prefer your provided colors if present
+        return {row[COL_BENTHIC]: row[COL_COLOR]
+                for _, row in df[[COL_BENTHIC, COL_COLOR]].dropna().drop_duplicates().iterrows()}
+    # Otherwise auto-assign from a qualitative palette
+    benthics = df[COL_BENTHIC].dropna().unique().tolist()
+    cmap = plt.get_cmap("tab20")  # 20 distinct-ish colors
+    return {b: cmap(i % 20) for i, b in enumerate(sorted(benthics))}
+
+# --- Make/choose markers for growth forms ---
+# Reserve "s" (square) only for the "None" category
+DEFAULT_MARKERS = ['o', '^', 'D', 'P', 'X', 'v', '<', '>', '*', 'h', 'H', 'p']  # no 's' here
+
+def make_marker_lookup(df):
+    # If your data already provides a marker column, honor it
+    if COL_MARKER in df.columns and df[COL_MARKER].notna().any():
+        return {row[COL_GROWTH]: row[COL_MARKER]
+                for _, row in df[[COL_GROWTH, COL_MARKER]].dropna().drop_duplicates().iterrows()}
+    # Otherwise assign from defaults, then force "None" -> square
+    growths = df[COL_GROWTH].unique().tolist()
+    lut = {g: DEFAULT_MARKERS[i % len(DEFAULT_MARKERS)] for i, g in enumerate(sorted(growths))}
+    if "None" in growths:
+        lut["None"] = "s"  # square reserved only for "None"
+    return lut
+
+# --- Legend builders  ---
+def get_legend_elements_from_df(df, color_lut, marker_lut):
+    from matplotlib.lines import Line2D
+
+    # Benthic legend (unchanged)
+    benthic_handles = [
+        Line2D([0],[0], marker='o', linestyle='None', markersize=8,
+               markerfacecolor=color_lut[b], markeredgecolor='black',
+               markeredgewidth=0.5, label=b)
+        for b in sorted(color_lut)
+    ]
+
+    # Growth-form legend with "None" last
+    keys = list(marker_lut.keys())
+    # sort alphabetically, but make "None" come last
+    keys.sort(key=lambda k: (str(k).lower() == "none", str(k).lower()))
+
+    growth_handles = [
+        Line2D([0],[0], marker=marker_lut[g], linestyle='None', markersize=8,
+               markerfacecolor='white', markeredgecolor='black',
+               markeredgewidth=0.8, label=g)
+        for g in keys
+    ]
+    return benthic_handles, growth_handles
+
+# --- Build lookups from your annotations DataFrame ---
+color_lut  = make_color_lookup(annotations)
+marker_lut = make_marker_lookup(annotations)
+
+# --- Plot ---
+fig, ax = plt.subplots(figsize=(8.5, 7), layout="tight")
+
+# If image is a PIL.Image, matplotlib handles it; if ndarray, that’s fine too
+ax.imshow(image)
+
+# Plot each annotated point
+# Use itertuples() for speed; fall back to dict lookups for color/marker
+for row in annotations.itertuples(index=False):
+    x = getattr(row, COL_X)
+    y = getattr(row, COL_Y)
+    benthic = getattr(row, COL_BENTHIC, None)
+    growth  = getattr(row, COL_GROWTH, None)
+    color   = getattr(row, COL_COLOR, None) if COL_COLOR in annotations.columns else None
+    marker  = getattr(row, COL_MARKER, None) if COL_MARKER in annotations.columns else None
+    # Fallbacks if explicit cols missing
+    if color is None and benthic is not None:
+        color = color_lut.get(benthic, 'tab:gray')
+    if marker is None and growth is not None:
+        marker = marker_lut.get(growth, 'o')
+
+    ax.scatter(x, y, c=[color], marker=marker, s=160, alpha=0.8, edgecolors='black', linewidths=0.4)
+
+# Legends
+benthic_legend_elements, growth_legend_elements = get_legend_elements_from_df(
+    annotations, color_lut, marker_lut
+)
+first_legend = ax.legend(handles=benthic_legend_elements, bbox_to_anchor=(0.99, 1.0),
+                         loc='upper left', title='Benthic\nAttributes', frameon=True)
+ax.add_artist(first_legend)
+
+ax.legend(handles=growth_legend_elements, bbox_to_anchor=(0.99, 0.40),
+          loc='center left', title='Growth\nForms', frameon=True)
+
+ax.axis("off")
+plt.show()
+```
