@@ -111,18 +111,10 @@ Once per day `s3://coral-reef-training/mermaid/mermaid_confirmed_annotations.par
 | `region_id`              | uuid     | id assigned to one of 12 MERMAID regions, taken from the [MEOW](https://www.worldwildlife.org/publications/marine-ecoregions-of-the-world-a-bioregionalization-of-coastal-and-shelf-areas) 'realms' (largest most aggregated polygons), in which the Benthic Photo Quadrat transect containing the annotation's image was collected |
 | `region_name`            | string   | name of MERMAID region corresponding to `region_id`                                                                                                                                                                                                                                                                                 |
 
-## Usage example
-
-TODO
-- fetch MERMAID annotations
-- fetch Coralnet annotations
-- label normalization
-- iterate over subset of images and get image files and details
-- indicate training classifier
-
 ## Tutorials
 
 - [Tutorial for R users](https://data-mermaid.github.io/image-classification-open-data/image-classification-open-data-tutorial_R.html)
+- [Tutorial for Python users](https://data-mermaid.github.io/image-classification-open-data/image-classification-open-data-tutorial_Python.html)
 
 ## License
 
